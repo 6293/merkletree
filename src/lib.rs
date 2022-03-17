@@ -5,7 +5,7 @@ pub type Data = Vec<u8>;
 pub type Hash = Vec<u8>;
 
 pub struct MerkleTree {
-    leaves: usize,
+    level: usize,
     hashes: Vec<Hash>
 }
 
@@ -26,20 +26,22 @@ pub struct Proof<'a> {
 impl MerkleTree {
     /// Constructs a Merkle tree from given input data
     pub fn construct(input: &[Data]) -> MerkleTree {
-        let mut ret: Vec<Hash> = input.iter().map(hash_data).collect();
-        let mut children = ret.len();
+        let mut hashes: Vec<Hash> = input.iter().map(hash_data).collect();
+        let mut children = hashes.len();
+        let mut level = 1;
         while children > 1 {
-            let len = ret.len();
-            for i in len - children .. len {
-                ret.push(hash_concat(&ret[i], &ret[i + 1]))
+            let len = hashes.len();
+            for i in (len - children .. len).step_by(2) {
+                hashes.push(hash_concat(&hashes[i], &hashes[i + 1]))
             }
-            children /= 2
+            children /= 2;
+            level += 1
         }
-        Self { leaves: input.len(), hashes: ret }
+        Self { level, hashes }
     }
 
     pub fn root_hash(&self) -> Hash {
-        self.hashes[self.leaves - 1].clone()
+        self.hashes[(1 << self.level) - 2].clone()
     }
 
     /// Verifies that the given input data produces the given root hash
@@ -64,14 +66,14 @@ mod tests {
 
     #[test]
     fn t_construct() {
-        let d1 = [1, 2, 3, 4];
-        let d2 = [8, 6, 7, 9];
-        let d3 = [5, 2, 9, 4];
-        let d4 = [3, 1, 2, 5];
-        let d5 = [3, 2, 9, 7];
-        let root_hash = MerkleTree::construct(&[Data::from(d1), Data::from(d2), Data::from(d3), Data::from(d4)]).root_hash();
-        assert!(MerkleTree::verify(&[Data::from(d1), Data::from(d2), Data::from(d3), Data::from(d4)], &root_hash));
-        assert!(!MerkleTree::verify(&[Data::from(d1), Data::from(d2), Data::from(d3), Data::from(d5)], &root_hash));
-        assert!(!MerkleTree::verify(&[Data::from(d1), Data::from(d2), Data::from(d4), Data::from(d3)], &root_hash));
+        let d0 = [1, 2, 3, 4];
+        let d1 = [8, 6, 7, 9];
+        let d2 = [5, 2, 9, 4];
+        let d3 = [3, 1, 2, 5];
+        let d4 = [3, 2, 9, 7];
+        let root_hash = MerkleTree::construct(&[Data::from(d0), Data::from(d1), Data::from(d2), Data::from(d3)]).root_hash();
+        assert!(MerkleTree::verify(&[Data::from(d0), Data::from(d1), Data::from(d2), Data::from(d3)], &root_hash));
+        assert!(!MerkleTree::verify(&[Data::from(d0), Data::from(d1), Data::from(d2), Data::from(d4)], &root_hash));
+        assert!(!MerkleTree::verify(&[Data::from(d0), Data::from(d1), Data::from(d3), Data::from(d2)], &root_hash));
     }
 }
